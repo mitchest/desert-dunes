@@ -3,168 +3,136 @@ library(data.table)
 library(mgcv)
 library(nlme)
 library(ggplot2)
+#library(moments)
 #library(foreign)
 
 source("dune-analysis_funs.R")
 
-# dune_data <- read.dbf("B:/0_scratchProcessing/Phantom3/desert_dunes/transects_dunes_points_dtm_slope.dbf", as.is=T)
-# save(dune_data, file="dune_data.RData")
+#dune_data <- read.dbf("transects_dunes_points_dtm_slope_dens.dbf", as.is=T)
+#save(dune_data, file="dune_data.RData")
 load("dune_data.RData")
 
-# shrub_data <- read.dbf("transect_shapefiles/dunes_shrub_dens.dbf", as.is = T)
-# save(shrub_data, file = "shrub_data.RData")
-load("shrub_data.RData")
+
 
 # add transect length/height -----------------------------------------------------
 
 dune_data_seq <- dune_data %>%
   filter(h_asl > 0) %>%
-  filter(!dune %in% c("dune5", "dune7a")) %>%
+  filter(!dune %in% c("dune5", "dune7a", "dune7b")) %>%
+  rename(shrub_dens = RASTERVALU) %>%
   group_by(Id) %>% #transect number
   mutate(distance = seq(0, by=0.1, length.out = n()),
          height = sapply(h_asl, function(x) x - min(h_asl)),
-         height_slope = height * slope)
+         r_j = height - mean(height),
+         q_j = slope - mean(slope)) %>%
+  ungroup() %>%
+  filter(height > 0.1)
+
+# # dune 7b transects were switched somehow
+# dune_data_seq$distance[dune_data_seq$dune == "dune7a" & dune_data_seq$fence == "inside"] <- abs(dune_data_seq$distance[dune_data_seq$dune == "dune7a" & dune_data_seq$fence == "inside"] - max(dune_data_seq$distance[dune_data_seq$dune == "dune7a" & dune_data_seq$fence == "inside"]))
+# dune_data_seq$distance[dune_data_seq$dune == "dune7b" & dune_data_seq$fence == "outside"] <- abs(dune_data_seq$distance[dune_data_seq$dune == "dune7b" & dune_data_seq$fence == "outside"] - max(dune_data_seq$distance[dune_data_seq$dune == "dune7b" & dune_data_seq$fence == "outside"]))
 
 
 
 # calculate metrics -------------------------------------------------------
 
-dune_data_metrics <- dune_data_seq %>%
+dune_shrub_metrics <- dune_data_seq %>%
   group_by(dune, fence, Id) %>%
-  summarise(dune_area = sum(height) * 0.1,
+  summarise(shrub_dens = mean(shrub_dens),
+            dune_area = sum(height) * 0.1,
             height_mean = mean(height),
             height_max = max(height),
-            height_95 = quantile(height, probs = 0.95),
+            height_99 = quantile(height, probs = 0.99),
+            height_sd = sd(height),
+            height_kurt = sum(r_j^4) / (n() * (sqrt(mean(r_j^2)))^4),
             slope_mean = mean(slope),
             slope_med = median(slope),
             slope_max = max(slope),
             slope_50 = quantile(slope, probs = 0.5),
-            slope_95 = quantile(slope, probs = 0.95),
-            slopeheight = mean(height_slope),
-            slopeheight_max = max(height_slope),
+            slope_99 = quantile(slope, probs = 0.99),
+            rough_mean = mean(abs(r_j)),
+            rough_rms = sqrt(mean(r_j^2)),
+            slope_rms = sqrt(mean(q_j^2)),
             compactness = dune_area / height_max,
-            east = mean(east), north = mean(north)) %>%
-  mutate(fence_dune = paste0(fence,"_",dune))
+            shape = dune_area / (pi*height_max*height_max/2),
+            east = mean(east), north = mean(north))
+
+# as factor for modelling
+dune_shrub_metrics$dune <- factor(dune_shrub_metrics$dune) # need factors for s(by = ) input
+dune_shrub_metrics$fence <- factor(dune_shrub_metrics$fence)
 
 
-shrub_metrics <- shrub_data %>%
-  mutate(mulga = !is.na(Species)) %>%
-  group_by(fence_dune) %>%
-  summarise(count = n(),
-            transect_area = mean(area),
-            shrub_dens = count/transect_area,
-            mulga_dens = sum(mulga)/transect_area)
-
-
-dune_shrub_metrics <- inner_join(dune_data_metrics, shrub_metrics, by = "fence_dune")
-
-shrub_metrics$fence <- unlist(lapply(strsplit(shrub_metrics$fence_dune, "_"), '[[', 1))
-shrub_metrics$dune <- unlist(lapply(strsplit(shrub_metrics$fence_dune, "_"), '[[', 2))
 
 # dune transect plots -----------------------------------------------------
 
-ggplot(data = dune_data_seq, aes(x = distance, y = height, group = Id)) +
-  geom_line(aes(colour = fence), size = 0.1, alpha = 0.5) +
-  facet_wrap(~dune, scales = "free")
+transect_plot <- ggplot(data = dune_data_seq, aes(x = distance, y = height, group = Id)) +
+  geom_line(aes(colour = fence), size = 1, alpha = 0.5) +
+  ylab("Dune height (m)") + xlab("Distance along transect (m)") + theme_bw() +
+  facet_wrap(~dune, scales = "fixed", nrow = 2)
+ggsave("plots/dune_transect_plot.png", transect_plot, width = 30, height = 15, units = "cm")
 
-ggplot(data = dune_data_metrics, aes(x = Id, y = slopeheight)) +
-  geom_point(aes(colour = fence), size = 2, alpha = 1) +
-  facet_wrap(~dune, scales = "free")
-
-
-
-# dune metric plots -------------------------------------------------------
-
-ggplot(data = dune_data_metrics, aes(y = dune_area)) +
-  geom_boxplot(aes(x = dune, fill = fence))
-
-ggplot(data = dune_data_metrics, aes(y = height_mean)) +
-  geom_boxplot(aes(x = dune, fill = fence))
-
-ggplot(data = dune_data_metrics, aes(y = height_max)) +
-  geom_boxplot(aes(x = dune, fill = fence))
-
-ggplot(data = dune_data_metrics, aes(y = slope_95)) +
-  geom_boxplot(aes(x = dune, fill = fence))
-
-ggplot(data = dune_data_metrics, aes(y = slope_50)) +
-  geom_boxplot(aes(x = dune, fill = fence))
-
-ggplot(data = dune_data_metrics, aes(y = slope_max)) +
-  geom_boxplot(aes(x = dune, fill = fence))
-
-ggplot(data = dune_data_metrics, aes(y = slopeheight)) +
-  geom_boxplot(aes(x = dune, fill = fence))
-
-ggplot(data = dune_data_metrics, aes(y = slopeheight_max)) +
-  geom_boxplot(aes(x = dune, fill = fence))
-
-ggplot(data = dune_data_metrics, aes(y = compactness)) +
-  geom_boxplot(aes(x = dune, fill = fence))
+dune1 <- ggplot(data = dune_data_seq[dune_data_seq$dune == "dune1",], aes(x = distance, y = height, group = Id)) +
+  geom_line(aes(colour = fence), size = 1, alpha = 0.5) +
+  ylab("Dune height (m)") + xlab("Distance along transect (m)") + theme_bw()
+ggsave("plots/dune1_plot.png", dune1, width = 30, height = 15, units = "cm")
 
 
 
 # shrub metric plots ------------------------------------------------------
 
-boxplot(shrub_dens ~ fence, data = shrub_metrics)
-
-boxplot(mulga_dens ~ fence, data = shrub_metrics)
+par(mfrow = c(3,2), mar = c(2,4,2,2), cex.lab = 1.3)
+boxplot(shrub_dens ~ fence, data = dune_shrub_metrics, ylab = "Shrub density")
+boxplot(height_99 ~ fence, data = dune_shrub_metrics, ylab = "Maximum height")
+boxplot(rough_mean ~ fence, data = dune_shrub_metrics, ylab = "Roughness")
+boxplot(slope_rms ~ fence, data = dune_shrub_metrics, ylab = "Slope-iness")
+boxplot(slope_99 ~ fence, data = dune_shrub_metrics, ylab = "Slope99th")
+boxplot(shape ~ fence, data = dune_shrub_metrics, ylab = "Shape")
 
 
 
 # dune and shrub models ---------------------------------------------------
 
-dune_shrub_metrics$dune <- factor(dune_shrub_metrics$dune) # need factors for s(by = ) input
-dune_shrub_metrics$fence <- factor(dune_shrub_metrics$fence)
-dune_shrub_metrics$fence_dune <- factor(dune_shrub_metrics$fence_dune)
-
 # shrubiness across fence - YES
-summary(lm(shrub_dens ~ fence, data = shrub_metrics))
-summary(lm(mulga_dens ~ fence, data = shrub_metrics))
+shrubiness <- gam(formula = shrub_dens ~ fence + s(dune, bs = 're'),
+                  correlation = corExp(form = ~ east + north, nugget = T),
+                  data = dune_shrub_metrics, method = "REML")
+summary(shrubiness)
+plot(shrubiness, all.terms = T)
 
 # shrubiness across space - YES
 spatial_smooth <- gam(formula = shrub_dens ~ te(east,north), data = dune_shrub_metrics)
 summary(spatial_smooth); plot(spatial_smooth, residuals = T)
 
 
-
 # explore
 metric_cors <- rbindlist(lapply(X = names(dune_shrub_metrics)[4:15], FUN = shrub_smooth, dune_shrub_metrics, F, F, T))
+
 
 ## models
 
 # height
-shrub_smooth("height_mean", dune_shrub_metrics)
-shrub_smooth_by_dune("height_mean", dune_shrub_metrics)
-shrub_smooth_dune_re("height_mean", dune_shrub_metrics)
-
-shrub_smooth("height_max", dune_shrub_metrics)
-shrub_smooth_by_dune("height_max", dune_shrub_metrics)
-shrub_smooth_dune_re("height_max", dune_shrub_metrics)
+shrub_smooth("height_99", dune_shrub_metrics)
+shrub_smooth_by_dune("height_99", dune_shrub_metrics)
+shrub_smooth_dune_re("height_99", dune_shrub_metrics)
 
 # slope
-shrub_smooth("slope_mean", dune_shrub_metrics)
-shrub_smooth_by_dune("slope_mean", dune_shrub_metrics)
-shrub_smooth_dune_re("slope_mean", dune_shrub_metrics)
+shrub_smooth_by_dune("slope_rms", dune_shrub_metrics)
+shrub_smooth_dune_re("slope_rms", dune_shrub_metrics)
 
-shrub_smooth("slope_max", dune_shrub_metrics)
-shrub_smooth_by_dune("slope_max", dune_shrub_metrics)
-shrub_smooth_dune_re("slope_max", dune_shrub_metrics)
+shrub_smooth("slope_99", dune_shrub_metrics)
+shrub_smooth_by_dune("slope_99", dune_shrub_metrics)
+shrub_smooth_dune_re("slope_99", dune_shrub_metrics)
 
 # shape
-shrub_smooth("compactness", dune_shrub_metrics)
-shrub_smooth_by_dune("compactness", dune_shrub_metrics)
-shrub_smooth_dune_re("compactness", dune_shrub_metrics)
+shrub_smooth("shape", dune_shrub_metrics)
+shrub_smooth_by_dune("shape", dune_shrub_metrics)
+shrub_smooth_dune_re("shape", dune_shrub_metrics)
 
-shrub_smooth("slopeheight", dune_shrub_metrics)
-shrub_smooth_by_dune("slopeheight", dune_shrub_metrics)
-shrub_smooth_dune_re("slopeheight", dune_shrub_metrics)
+# shrub_smooth("compactness", dune_shrub_metrics)
+# shrub_smooth_by_dune("compactness", dune_shrub_metrics)
+# shrub_smooth_dune_re("compactness", dune_shrub_metrics)
 
-# area
-shrub_smooth("dune_area", dune_shrub_metrics)
-shrub_smooth_by_dune("dune_area", dune_shrub_metrics)
-shrub_smooth_dune_re("dune_area", dune_shrub_metrics)
-
-
-
+# roughness
+shrub_smooth_by_dune("rough_mean", dune_shrub_metrics)
+shrub_smooth_dune_re("rough_mean", dune_shrub_metrics)
 
