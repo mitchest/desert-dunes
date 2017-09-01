@@ -29,8 +29,8 @@ shrub_smooth_by_dune <- function(y, data, summary = T, plot = F) {
   invisible(fm)
 }
 
-shrub_smooth_dune_re <- function(y, data, summary = T, plot = F) {
-  fm <- gam(formula = as.formula(paste0(y," ~ fence + s(shrub_dens, bs = 'tp') + s(dune, bs = 're')")),
+shrub_smooth_dune_re <- function(y, data, summary = T, plot = F, bs = "'tp'") {
+  fm <- gam(formula = as.formula(paste0(y," ~ fence + s(shrub_dens, bs = ",bs,") + s(dune, bs = 're')")),
             correlation = corExp(form = ~ east + north, nugget = T),
             data = data, method = "REML")
   if(summary) {print(summary(fm))}
