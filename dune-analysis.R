@@ -3,6 +3,7 @@ library(data.table)
 library(mgcv)
 library(nlme)
 library(ggplot2)
+library(itsadug)
 #library(moments)
 #library(foreign)
 
@@ -43,12 +44,9 @@ dune_shrub_metrics <- dune_data_seq %>%
             dune_area = sum(height) * 0.1,
             dune_width = n() * 0.1,
             height_max = max(height),
-            height_99 = quantile(height, probs = 0.999),
             height_kurt = sum(r_j^4) / (n() * (sqrt(mean(r_j^2)))^4),
-            slope_99 = quantile(slope, probs = 0.999),
-            rough_mean = mean(abs(r_j)),
             rough_rms = sqrt(mean(r_j^2)),
-            slope_rms = sqrt(mean(q_j^2)),
+            slope_cv = sd(slope) / mean(slope),
             flatness = dune_area / height_max,
             flatness2 = dune_width / height_max,
             sphericity = dune_area / (pi*height_max*height_max/2),
@@ -120,7 +118,7 @@ shrub_smooth_dune_re("height_max", dune_shrub_metrics, plot = T)
 
 # slope
 shrub_smooth_by_dune("slope_rms", dune_shrub_metrics)
-shrub_smooth_dune_re("slope_rms", dune_shrub_metrics, plot = T)
+shrub_smooth_dune_re("slope_cv", dune_shrub_metrics, plot = T)
 
 # shape
 shrub_smooth("sphericity", dune_shrub_metrics)

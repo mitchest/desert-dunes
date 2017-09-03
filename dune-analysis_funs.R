@@ -33,8 +33,13 @@ shrub_smooth_dune_re <- function(y, data, summary = T, plot = F, bs = "'tp'") {
   fm <- gam(formula = as.formula(paste0(y," ~ fence + s(shrub_dens, bs = ",bs,") + s(dune, bs = 're')")),
             correlation = corExp(form = ~ east + north, nugget = T),
             data = data, method = "REML")
-  if(summary) {print(summary(fm))}
-  if (plot) {plot(fm, select = 1)}
+  if(summary) {print(summary(fm)); print(anova(fm))}
+  if (plot) {
+    #plot(fm, all.terms = T)
+    #plot_smooth(fm, view = "shrub_dens", cond = list(fence="inside"), col = "red", rm.ranef = T, legend_plot_all = "bottomright")
+    #plot_smooth(fm, view = "shrub_dens", cond = list(fence="outside"), col = "blue", rm.ranef = T, add = T, legend_plot_all = "bottomright")
+    plot_smooth(fm, view = "shrub_dens", plot_all = "fence", rm.ranef = T)
+  }
   invisible(fm)
 }
 
