@@ -45,7 +45,8 @@ dune_shrub_metrics <- dune_data_seq %>%
             dune_width = n() * 0.1,
             height_max = max(height),
             height_kurt = sum(r_j^4) / (n() * (sqrt(mean(r_j^2)))^4),
-            rough_rms = sqrt(mean(r_j^2)),
+            heightdev_rms = sqrt(mean(r_j^2)),
+            slope_rms = sqrt(mean(q_j^2)),
             slope_cv = sd(slope) / mean(slope),
             flatness = dune_area / height_max,
             flatness2 = dune_width / height_max,
@@ -83,11 +84,11 @@ ggsave("plots/dune1_plot.png", dune1, width = 30, height = 15, units = "cm")
 
 par(mfrow = c(3,2), mar = c(2,4,2,2), cex.lab = 1.3)
 boxplot(shrub_dens ~ fence, data = dune_shrub_metrics, ylab = "Shrub density")
-boxplot(height_99 ~ fence, data = dune_shrub_metrics, ylab = "Maximum height")
-boxplot(rough_mean ~ fence, data = dune_shrub_metrics, ylab = "Roughness")
+boxplot(height_max ~ fence, data = dune_shrub_metrics, ylab = "Maximum height")
+boxplot(heightdev_rms ~ fence, data = dune_shrub_metrics, ylab = "Height dev.")
 boxplot(slope_rms ~ fence, data = dune_shrub_metrics, ylab = "Slope-iness")
-boxplot(slope_99 ~ fence, data = dune_shrub_metrics, ylab = "Slope99th")
-boxplot(shape ~ fence, data = dune_shrub_metrics, ylab = "Shape")
+boxplot(slope_cv ~ fence, data = dune_shrub_metrics, ylab = "Slope CV")
+boxplot(flatness ~ fence, data = dune_shrub_metrics, ylab = "Shape")
 
 
 
@@ -105,42 +106,37 @@ spatial_smooth <- gam(formula = shrub_dens ~ te(east,north), data = dune_shrub_m
 summary(spatial_smooth); plot(spatial_smooth, residuals = T)
 
 
-# explore
-metric_cors <- rbindlist(lapply(X = names(dune_shrub_metrics)[4:15], FUN = shrub_smooth, dune_shrub_metrics, F, F, T))
-
 
 ## models
 
 # height
-shrub_smooth("height_max", dune_shrub_metrics)
 shrub_smooth_by_dune("height_max", dune_shrub_metrics)
 shrub_smooth_dune_re("height_max", dune_shrub_metrics, plot = T)
 
-# slope
+shrub_smooth_by_dune("rough_rms", dune_shrub_metrics)
+shrub_smooth_dune_re("rough_rms", dune_shrub_metrics, plot = T)
+
+# slope/roughness
 shrub_smooth_by_dune("slope_rms", dune_shrub_metrics)
+shrub_smooth_dune_re("slope_rms", dune_shrub_metrics, plot = T)
+
+shrub_smooth_by_dune("slope_cv", dune_shrub_metrics)
 shrub_smooth_dune_re("slope_cv", dune_shrub_metrics, plot = T)
 
 # shape
-shrub_smooth("sphericity", dune_shrub_metrics)
-shrub_smooth_by_dune("sphericity", dune_shrub_metrics)
-shrub_smooth_dune_re("sphericity", dune_shrub_metrics, plot = T)
+shrub_smooth_by_dune("flatness", dune_shrub_metrics)
+shrub_smooth_dune_re("flatness", dune_shrub_metrics, plot = T)
+
+# shrub_smooth_by_dune("sphericity", dune_shrub_metrics)
+# shrub_smooth_dune_re("sphericity", dune_shrub_metrics, plot = T)
 
 # shrub_smooth("rectangularity", dune_shrub_metrics)
 # shrub_smooth_by_dune("rectangularity", dune_shrub_metrics)
 # shrub_smooth_dune_re("rectangularity", dune_shrub_metrics, plot = T)
 
-shrub_smooth("flatness", dune_shrub_metrics)
-shrub_smooth_by_dune("flatness", dune_shrub_metrics)
-shrub_smooth_dune_re("flatness", dune_shrub_metrics, plot = T)
-
 # shrub_smooth("flatness2", dune_shrub_metrics)
 # shrub_smooth_by_dune("flatness2", dune_shrub_metrics)
 # shrub_smooth_dune_re("flatness2", dune_shrub_metrics, plot = T)
-
-# roughness
-shrub_smooth_by_dune("rough_rms", dune_shrub_metrics)
-shrub_smooth_dune_re("rough_rms", dune_shrub_metrics, plot = T)
-
 
 # width??
 shrub_smooth_dune_re("dune_width", dune_shrub_metrics, plot = T)
