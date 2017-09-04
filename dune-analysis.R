@@ -108,24 +108,25 @@ summary(spatial_smooth); plot(spatial_smooth, residuals = T)
 
 
 ## models
+make_plots = F
 
 # height
 fence_dune_re("height_max", dune_shrub_metrics)
-shrub_smooth_dune_re("height_max", dune_shrub_metrics, plot = T)
+shrub_smooth_dune_re("height_max", dune_shrub_metrics, plot = make_plots)
 
 fence_dune_re("heightdev_rms", dune_shrub_metrics)
-shrub_smooth_dune_re("heightdev_rms", dune_shrub_metrics, plot = T)
+shrub_smooth_dune_re("heightdev_rms", dune_shrub_metrics, plot = make_plots)
 
 # slope/roughness
 fence_dune_re("slope_rms", dune_shrub_metrics)
-shrub_smooth_dune_re("slope_rms", dune_shrub_metrics, plot = T)
+shrub_smooth_dune_re("slope_rms", dune_shrub_metrics, plot = make_plots)
 
 fence_dune_re("slope_cv", dune_shrub_metrics)
-shrub_smooth_dune_re("slope_cv", dune_shrub_metrics, plot = T)
+shrub_smooth_dune_re("slope_cv", dune_shrub_metrics, plot = make_plots)
 
 # shape
 fence_dune_re("flatness", dune_shrub_metrics)
-shrub_smooth_dune_re("flatness", dune_shrub_metrics, plot = T)
+shrub_smooth_dune_re("flatness", dune_shrub_metrics, plot = make_plots)
 
 # shrub_smooth_dune_re("sphericity", dune_shrub_metrics, plot = T)
 
@@ -134,7 +135,7 @@ shrub_smooth_dune_re("flatness", dune_shrub_metrics, plot = T)
 # shrub_smooth_dune_re("flatness2", dune_shrub_metrics, plot = T)
 
 # width??
-fence_dune_re("dune_width", dune_shrub_metrics, plot = T)
+fence_dune_re("dune_width", dune_shrub_metrics, plot = make_plots)
 
 
 
