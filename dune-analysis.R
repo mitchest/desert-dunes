@@ -19,7 +19,8 @@ load("dune_data.RData")
 
 dune_data_seq <- dune_data %>%
   filter(h_asl > 0) %>%
-  filter(!dune %in% c("dune5", "dune7a", "dune2")) %>%
+  filter(!dune %in% c("dune5", "dune7a", "dune2"),
+         !Id %in% c(157,158,159,161)) %>% # few odd length transects
   rename(shrub_dens = RASTERVALU) %>%
   group_by(Id) %>% #transect number
   mutate(distance = seq(0, by=0.1, length.out = n()),
@@ -28,7 +29,7 @@ dune_data_seq <- dune_data %>%
          q_j = slope - mean(slope)) %>%
   ungroup() %>%
   filter(height > 0.2,
-         !(distance > 175 & dune == "dune2"))
+         !(distance > 175 & dune == "dune2")) # lengths too uneven
 
 # dune 9/7 transects were switched somehow
 #dune_data_seq$distance[dune_data_seq$dune == "dune7a" & dune_data_seq$fence == "inside"] <- abs(dune_data_seq$distance[dune_data_seq$dune == "dune7a" & dune_data_seq$fence == "inside"] - max(dune_data_seq$distance[dune_data_seq$dune == "dune7a" & dune_data_seq$fence == "inside"]))
@@ -52,10 +53,11 @@ dune_shrub_metrics <- dune_data_seq %>%
             flatness2 = dune_width / height_max,
             sphericity = dune_area / (pi*height_max*height_max/2),
             rectangularity = dune_area / (dune_width * height_max),
-            east = mean(east), north = mean(north))
+            east = median(east), north = median(north)) %>%
+  filter(height_max > 2) # any odd little transects
 
 # as factor for modelling
-dune_shrub_metrics$dune <- factor(dune_shrub_metrics$dune) # need factors for s(by = ) input
+dune_shrub_metrics$dune <- factor(dune_shrub_metrics$dune) # need factors for some mgcv args
 dune_shrub_metrics$fence <- factor(dune_shrub_metrics$fence)
 
 
@@ -95,11 +97,12 @@ boxplot(flatness ~ fence, data = dune_shrub_metrics, ylab = "Shape")
 # dune and shrub models ---------------------------------------------------
 
 # shrubiness across fence - YES
-shrubiness <- gam(formula = shrub_dens ~ fence + s(dune, bs = 're'),
-                  correlation = corExp(form = ~ east + north, nugget = T),
+dune_shrub_metrics$shrub_dens_log <- log1p(dune_shrub_metrics$shrub_dens)
+shrubiness <- gamm(formula = shrub_dens ~ fence + s(dune, bs = 're'),
+                  correlation = corGaus(form = ~ east + north, nugget = F),
                   data = dune_shrub_metrics, method = "REML")
-summary(shrubiness)
-plot(shrubiness, all.terms = T)
+summary(shrubiness$gam)
+plot(shrubiness$lme, all.terms = T)
 
 # shrubiness across space - YES
 spatial_smooth <- gam(formula = shrub_dens ~ te(east,north), data = dune_shrub_metrics)
@@ -108,31 +111,32 @@ summary(spatial_smooth); plot(spatial_smooth, residuals = T)
 
 
 ## models
-make_plots = F
+make_plots = T
 
 # height
+## height max is probably not that good an idea??
 fence_dune_re("height_max", dune_shrub_metrics)
-shrub_smooth_dune_re("height_max", dune_shrub_metrics, plot = make_plots)
+shrub_smooth_dune_re2("height_max", dune_shrub_metrics, plot = make_plots)
 
 fence_dune_re("heightdev_rms", dune_shrub_metrics)
-shrub_smooth_dune_re("heightdev_rms", dune_shrub_metrics, plot = make_plots)
+shrub_smooth_dune_re2("heightdev_rms", dune_shrub_metrics, plot = make_plots)
 
 # slope/roughness
 fence_dune_re("slope_rms", dune_shrub_metrics)
-shrub_smooth_dune_re("slope_rms", dune_shrub_metrics, plot = make_plots)
+shrub_smooth_dune_re2("slope_rms", dune_shrub_metrics, plot = make_plots)
 
 fence_dune_re("slope_cv", dune_shrub_metrics)
-shrub_smooth_dune_re("slope_cv", dune_shrub_metrics, plot = make_plots)
+shrub_smooth_dune_re2("slope_cv", dune_shrub_metrics, plot = make_plots)
 
 # shape
 fence_dune_re("flatness", dune_shrub_metrics)
-shrub_smooth_dune_re("flatness", dune_shrub_metrics, plot = make_plots)
+shrub_smooth_dune_re2("flatness", dune_shrub_metrics, plot = make_plots)
 
-# shrub_smooth_dune_re("sphericity", dune_shrub_metrics, plot = T)
-
-# shrub_smooth_dune_re("rectangularity", dune_shrub_metrics, plot = T)
+fence_dune_re("rectangularity", dune_shrub_metrics)
+shrub_smooth_dune_re2("rectangularity", dune_shrub_metrics, plot = T)
 
 # shrub_smooth_dune_re("flatness2", dune_shrub_metrics, plot = T)
+# shrub_smooth_dune_re("sphericity", dune_shrub_metrics, plot = T)
 
 # width??
 fence_dune_re("dune_width", dune_shrub_metrics, plot = make_plots)
