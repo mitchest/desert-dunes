@@ -28,7 +28,7 @@ shrub_smooth_dune_re2 <- function(y, data, summary = T, plot = F, bs = "'tp'") {
              data = data, method = "REML")
   if(summary) {print(summary(fm$gam)); print(anova(fm$gam))}
   if (plot) {
-    plot_shrub_by_fence(fm = fm, orig_data = data)
+    plot_shrub_by_fence(fm = fm, orig_data = data, print = T)
     #plot(fm$gam, all.terms = T)
     #plot_smooth(fm, view = "shrub_dens", cond = list(fence="inside"), col = "red", rm.ranef = T, legend_plot_all = "bottomright")
     #plot_smooth(fm, view = "shrub_dens", cond = list(fence="outside"), col = "blue", rm.ranef = T, add = T, legend_plot_all = "bottomright")
@@ -37,7 +37,7 @@ shrub_smooth_dune_re2 <- function(y, data, summary = T, plot = F, bs = "'tp'") {
   invisible(fm)
 }
 
-plot_shrub_by_fence <- function(fm, orig_data, xmin = 0, xmax = 0.0155, ylabel = NULL) {
+plot_shrub_by_fence <- function(fm, orig_data, xmin = 0, xmax = 0.0155, ylabel = NULL, print = F) {
   fm <- fm$gam
   # have to give the dune value, even though it'll be excluded....
   newdat_in <- data.frame(shrub_dens = seq(xmin, xmax, length.out = 100), fence = rep("inside", 100), dune = rep("dune1", 100))
@@ -54,11 +54,31 @@ plot_shrub_by_fence <- function(fm, orig_data, xmin = 0, xmax = 0.0155, ylabel =
   predplt <- ggplot(data = preds, aes(x = shrub_dens)) +
     geom_ribbon(aes(x = shrub_dens, ymax = fit + se, ymin = fit - se, fill = fence), alpha = "0.1") +
     geom_line(aes(y = fit, colour = fence)) +
-    geom_rug(mapping = aes(x = shrub_dens), data = orig_data) +
+    geom_rug(mapping = aes(x = shrub_dens, colour = fence), data = orig_data) +
     xlim(c(xmin, xmax)) +
     scale_color_manual(values = c("red","blue")) + scale_fill_manual(values = c("red","blue")) + 
-    xlab("Shrub density (shrubs/m2)") + ylab(ylabel) + theme_bw()
-  print(predplt)
+    geom_vline(xintercept = max(orig_data$shrub_dens[orig_data$fence == "outside"]), colour = "blue", linetype = "dotted") +
+    labs(x = expression(Shrub~density~(m^-2)), y = ylabel) + theme_classic()
+  if(print){print(predplt)}
   invisible(predplt)
 }
+
+get_paper_values <- function(fm) {
+  fm_sum <- summary(fm$gam)
+  print(round(fm_sum$p.table, 3))
+  print(round(fm_sum$pTerms.table, 3))
+  print(round(fm_sum$s.table, 3))
+}
+
+my.gam.check <- function(fm) {
+  par(mfrow=c(2,2))
+  try(gam.check(fm$gam))
+  par(mfrow=c(1,1))
+}
+
+
+
+
+
+
 
