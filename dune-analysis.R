@@ -1,9 +1,9 @@
-library(dplyr)
-library(data.table)
-library(mgcv)
-library(nlme)
 library(ggplot2)
 library(gridExtra)
+library(nlme)
+library(mgcv)
+library(data.table)
+library(dplyr)
 #library(moments)
 #library(foreign)
 
@@ -12,6 +12,8 @@ source("dune-analysis_funs.R")
 #dune_data <- read.dbf("transects_dunes_points_dtm_slope_dens.dbf", as.is=T)
 #save(dune_data, file="dune_data.RData")
 load("dune_data.RData")
+
+shrub_ts_data <- read.csv("historical_shrub_data.csv")
 
 
 
@@ -41,7 +43,7 @@ dune_data_seq$distance[dune_data_seq$dune == "dune9" & dune_data_seq$fence == "o
 
 dune_shrub_metrics <- dune_data_seq %>%
   group_by(dune, fence, Id) %>%
-  summarise(shrub_dens = mean(shrub_dens),
+  summarise(shrub_dens = mean(shrub_dens) * 10000, # transform to shrubs/hectare
             dune_area = sum(height) * 0.1,
             dune_width = n() * 0.1,
             height_max = max(height),
@@ -61,10 +63,10 @@ dune_shrub_metrics$dune <- factor(dune_shrub_metrics$dune) # need factors for so
 dune_shrub_metrics$fence <- factor(dune_shrub_metrics$fence)
 
 
-###
-### I dont think the width metrics are a good idea - the dunes have such a long low slope into the swale,
-### it seems attemtps to characterise their widths are just indicative of sampling length
-###
+# secondary data set with more balanced shrub density insdie/outside
+dune_shrub_metrics2 <- dune_shrub_metrics %>%
+  filter(shrub_dens < max(dune_shrub_metrics$shrub_dens[dune_shrub_metrics$fence=="outside"]))
+
 
 
 # dune transect plots -----------------------------------------------------
@@ -77,15 +79,105 @@ ggsave("plots/dune_transect_plot.png", transect_plot, width = 30, height = 20, u
 
 
 
+# shrub time series -------------------------------------------------------
+
+shrub_timeseries <- shrub_ts_data %>%
+  mutate(#year = factor(year),
+         shrub_density = count / (area/10000)) %>% # shrubs/hectare
+  group_by(fence, year) %>%
+  summarise(mean_shrub_density = mean(shrub_density),
+            std_dev = sd(shrub_density),
+            nsamps = n(),
+            std_err = std_dev / sqrt(nsamps))
+
+shrub_diff_ts <- rbindlist(lapply(X = unique(shrub_timeseries$year), FUN = shrub_dens_diff, shrub_timeseries))
+
+ggplot(shrub_timeseries, aes(x = year, y = mean_shrub_density, colour = fence)) +
+  geom_line(aes(group = fence), size = 1) +
+  geom_errorbar(aes(ymax = mean_shrub_density + std_err, ymin = mean_shrub_density - std_err), size = 0.25) +
+  scale_x_continuous(breaks = unique(shrub_timeseries$year)) +
+  theme_classic()
+
+history_plt <- ggplot(shrub_diff_ts, aes(x = year, y = diff)) +
+  geom_line(size = 1) +
+  geom_errorbar(aes(ymax = diff + std_err, ymin = diff - std_err), size = 0.25, width = 0.4) +
+  scale_x_continuous(breaks = unique(shrub_diff_ts$year)) +
+  ylim(-10, 80) +
+  geom_hline(yintercept = 0, linetype = 2) +
+  ylab("Shrub density (shrubs/Ha)") + xlab("Image date") +
+  ggtitle("Difference in shrub density inside and outside the Dingo fence") +
+  # annotate("text", x = 1948, y = 8, 
+  #          label = "Difference in shrub density inside and outside the Dingo fence", size = 6, hjust = 0) +
+  annotate("text", x = 1992, y = -5, label = sprintf('\u2193'), size = 9) +
+  annotate("text", x = 1994, y = -5, label = "more shrubs outside", size = 4, hjust = 0) +
+  annotate("text", x = 1992, y = 5, label = sprintf('\u2191'), size = 9) +
+  annotate("text", x = 1994, y = 5, label = "more shrubs inside", size = 4, hjust = 0) +
+  theme_classic()
+ggsave(filename = "plots/history_plot.png", device = "png", plot = history_plt, width = 12, height = 8)
+
+
 # shrub metric plots ------------------------------------------------------
 
 boxplot(shrub_dens ~ fence, data = dune_shrub_metrics, ylab = "Shrub density")
+my_violin("shrub_dens", dune_shrub_metrics, ylab = "Shrub density")
+
+shrub_model <- lme(fixed = shrub_dens ~ fence, random = ~ 1 | dune,
+                   correlation = corGaus(form = ~ east + north | dune, nugget = F),
+                   data = dune_shrub_metrics)
+summary(shrub_model)
+
+par(mfrow=c(3,2))
 boxplot(height_max ~ fence, data = dune_shrub_metrics, ylab = "Maximum height")
 boxplot(heightdev_rms ~ fence, data = dune_shrub_metrics, ylab = "Height dev.")
 boxplot(slope_rms ~ fence, data = dune_shrub_metrics, ylab = "Slope-iness")
 boxplot(slope_cv ~ fence, data = dune_shrub_metrics, ylab = "Slope CV")
 boxplot(flatness ~ fence, data = dune_shrub_metrics, ylab = "Flatness")
 boxplot(rectangularity ~ fence, data = dune_shrub_metrics, ylab = "Rectangularity")
+
+
+metric_plt <- grid.arrange(
+  my_violin("height_max", data = dune_shrub_metrics, ylab = "Maximum height"),
+  my_violin("heightdev_rms", data = dune_shrub_metrics, ylab = "Height dev."),
+  my_violin("slope_rms", data = dune_shrub_metrics, ylab = "Slope-iness"),
+  my_violin("slope_cv", data = dune_shrub_metrics, ylab = "Slope CV"),
+  my_violin("flatness", data = dune_shrub_metrics, ylab = "Flatness"),
+  my_violin("rectangularity", data = dune_shrub_metrics, ylab = "Rectangularity"),
+  ncol = 3)
+ggsave("plots/dune_metric_plots.png", device = "png", plot = metric_plt, width = 12, height = 8)
+
+
+# geomorph clustering -----------------------------------------------------
+library(ggbiplot)
+
+pca_dat <- dune_shrub_metrics %>%
+  ungroup() %>%
+  select(height_max, heightdev_rms, slope_rms, slope_cv, flatness, rectangularity)
+
+pca <- prcomp(pca_dat, scale. = T)
+
+# pca_plot_data <- data.frame(pca$x, shrub_density = dune_shrub_metrics$shrub_dens,
+#                             dune = dune_shrub_metrics$dune, fence = dune_shrub_metrics$fence)
+# ggplot(data = pca_plot_data, mapping = aes(x = PC1, y = PC2, col = fence)) +
+#   geom_point(size = 2, alpha = 0.5) +
+#   theme_classic()
+
+pca_plt <- ggbiplot(pca, obs.scale = 1, var.scale = 1,
+         groups = dune_shrub_metrics$dune,
+         ellipse = F, circle = F, alpha = 0) +
+  geom_point(aes(shape = dune_shrub_metrics$fence, colour = dune_shrub_metrics$dune), size = 3) + 
+  scale_color_brewer(palette = "Set1", name = 'Dune number') +
+  scale_shape_discrete(name = 'Dingo fence') +
+  theme_classic()
+ggsave("plots/dune_metric_pca.png", device = "png", plot = pca_plt, width = 12, height = 10)
+
+ggbiplot(pca, obs.scale = 1, var.scale = 1,
+         groups = dune_shrub_metrics$shrub_dens,
+         ellipse = F, circle = F, alpha = 0) +
+  geom_point(aes(colour = dune_shrub_metrics$shrub_dens, shape = dune_shrub_metrics$fence), size = 3) + 
+  scale_color_gradient(low = "coral", high = "green", name = "Shrub density") +
+  scale_shape_discrete(name = 'Dingo fence') +
+  theme_classic()
+
 
 
 # dune and shrub models ---------------------------------------------------
@@ -106,46 +198,31 @@ summary(spatial_smooth); plot(spatial_smooth, residuals = T)
 
 
 ## models
-make_plots <- F
-print_summary <- F
+# make_plots <- F
+# print_summary <- F
 
-# height
-## height max is probably not that good an idea??
-#fence_dune_re("height_max", dune_shrub_metrics)
-height <- shrub_smooth_dune_re2("height_max", dune_shrub_metrics, plot = make_plots, summary = print_summary)
-my.gam.check(height)
-get_paper_values(height)
+height <- shrub_smooth_dune_re("height_max", dune_shrub_metrics, bs = "'tp'")
+heightdev <- shrub_smooth_dune_re("heightdev_rms", dune_shrub_metrics, bs = "'tp'")
+sloperms <- shrub_smooth_dune_re("slope_rms", dune_shrub_metrics, bs = "'tp'")
+slopecv <- shrub_smooth_dune_re("slope_cv", dune_shrub_metrics, bs = "'tp'")
+flat <- shrub_smooth_dune_re("flatness", dune_shrub_metrics, bs = "'tp'")
+rect <- shrub_smooth_dune_re("rectangularity", dune_shrub_metrics, bs = "'tp'")
 
-#fence_dune_re("heightdev_rms", dune_shrub_metrics)
-heightdev <- shrub_smooth_dune_re2("heightdev_rms", dune_shrub_metrics, plot = make_plots, summary = print_summary)
 my.gam.check(heightdev)
-get_paper_values(heightdev)
-
-# slope/roughness
-#fence_dune_re("slope_rms", dune_shrub_metrics)
-sloperms <- shrub_smooth_dune_re2("slope_rms", dune_shrub_metrics, plot = make_plots, summary = print_summary)
+my.gam.check(height)
 my.gam.check(sloperms)
-get_paper_values(sloperms)
-
-#fence_dune_re("slope_cv", dune_shrub_metrics)
-slopecv <- shrub_smooth_dune_re2("slope_cv", dune_shrub_metrics, plot = make_plots, summary = print_summary)
 my.gam.check(slopecv)
-get_paper_values(slopecv)
-
-# shape
-#fence_dune_re("flatness", dune_shrub_metrics)
-flat <- shrub_smooth_dune_re2("flatness", dune_shrub_metrics, plot = make_plots, summary = print_summary)
 my.gam.check(flat)
-get_paper_values(flat)
-
-#fence_dune_re("rectangularity", dune_shrub_metrics)
-rect <- shrub_smooth_dune_re2("rectangularity", dune_shrub_metrics, plot = make_plots, summary = print_summary)
 my.gam.check(rect)
+
+get_paper_values(height)
+get_paper_values(heightdev)
+get_paper_values(sloperms)
+get_paper_values(slopecv)
+get_paper_values(flat)
 get_paper_values(rect)
 
-# shrub_smooth_dune_re2("flatness2", dune_shrub_metrics, plot = T)
-# shrub_smooth_dune_re2("sphericity", dune_shrub_metrics, plot = T)
-
+# parial plots
 heightplt <- plot_shrub_by_fence(height, dune_shrub_metrics, ylabel = "Maximum height")
 heightdevplt <- plot_shrub_by_fence(heightdev, dune_shrub_metrics, ylabel = "Height deviation")
 slopermsplt <- plot_shrub_by_fence(sloperms, dune_shrub_metrics, ylabel = "Roughness (slope rms)")
@@ -154,5 +231,5 @@ flatplt <- plot_shrub_by_fence(flat, dune_shrub_metrics, ylabel = "Flatness")
 rectplt <- plot_shrub_by_fence(rect, dune_shrub_metrics, ylabel = "Rectangularity")
 
 shrub_partials <- grid.arrange(heightplt, heightdevplt, slopermsplt, slopecvplt, flatplt, rectplt)
-
+ggsave("plots/shrub_partials.png", device = "png", plot = shrub_partials, width = 12, height = 10)
 

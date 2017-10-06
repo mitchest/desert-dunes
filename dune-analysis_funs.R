@@ -1,3 +1,17 @@
+my_violin <- function(y, data, ylab = y) {
+  ggplot(data = data, mapping = aes_string(x = "fence", y = y)) +
+    ylab(ylab) + xlab("Dingo fence") +
+    geom_violin(draw_quantiles = c(0.25,0.5,0.75)) + theme_bw()
+}
+
+shrub_dens_diff <- function(x, data) {
+  dat_in <- filter(data, year == x, fence == "inside")
+  dat_out <- filter(data, year == x, fence == "outside")
+  data.frame(year = x,
+             diff = dat_in$mean_shrub_density - dat_out$mean_shrub_density,
+             std_err = sqrt((dat_in$std_dev^2 / dat_in$nsamps) + (dat_out$std_dev^2 / dat_out$nsamps)))
+}
+
 fence_dune_re <- function(y, data, summary = T, plot = F) {
   fm <- gamm(formula = as.formula(paste0(y," ~ fence + s(dune, bs = 're')")),
             correlation = corGaus(form = ~ east + north | dune, nugget = F),
@@ -7,8 +21,27 @@ fence_dune_re <- function(y, data, summary = T, plot = F) {
   invisible(fm)
 }
 
-shrub_smooth_dune_re <- function(y, data, summary = T, plot = F, bs = "'ts'") {
-  fm <- gamm(formula = as.formula(paste0(y," ~ fence + s(shrub_dens, bs = ",bs,") + s(dune, bs = 're')")),
+shrub_only <- function(y, data, bs = "'tp'") {
+  fm <- gamm(formula = as.formula(paste0(y," ~ s(shrub_dens, bs = ",bs,") + s(dune, bs = 're')")),
+             correlation = corGaus(form = ~ east + north | dune, nugget = F),
+             data = data, method = "REML")
+  print(plot_shrub_by_fence(fm = fm, orig_data = data))
+  print(summary(fm$gam))
+  invisible(fm)
+}
+
+fence_shrub_dune <- function(y, data) {
+  require(effects)
+  fm <- lme(fixed = as.formula(paste0(y," ~ fence + shrub_dens")),
+            random = ~ 1 | dune,
+            correlation = corGaus(form = ~ east + north | dune, nugget = F),
+            data = data, method = "REML")
+  print(summary(fm))
+  invisible(fm)
+}
+
+shrub_smooth_dune_re <- function(y, data, summary = F, plot = F, bs = "'tp'") {
+  fm <- gamm(formula = as.formula(paste0(y," ~ s(shrub_dens, bs = ",bs,") + fence + s(dune, bs = 're')")),
             correlation = corGaus(form = ~ east + north | dune, nugget = F),
             data = data, method = "REML")
   if(summary) {print(summary(fm$gam)); print(anova(fm$gam))}
@@ -37,11 +70,12 @@ shrub_smooth_dune_re2 <- function(y, data, summary = T, plot = F, bs = "'tp'") {
   invisible(fm)
 }
 
-plot_shrub_by_fence <- function(fm, orig_data, xmin = 0, xmax = 0.0155, ylabel = NULL, print = F) {
+plot_shrub_by_fence <- function(fm, orig_data, xmin = 0, xmax = 15, ylabel = NULL, print = F) {
   fm <- fm$gam
+  max_out <- max(orig_data$shrub_dens[orig_data$fence == "outside"])
   # have to give the dune value, even though it'll be excluded....
   newdat_in <- data.frame(shrub_dens = seq(xmin, xmax, length.out = 100), fence = rep("inside", 100), dune = rep("dune1", 100))
-  newdat_out <- data.frame(shrub_dens = seq(xmin, xmax, length.out = 100), fence = rep("outside", 100), dune = rep("dune1", 100))
+  newdat_out <- data.frame(shrub_dens = seq(xmin, max_out, length.out = 100), fence = rep("outside", 100), dune = rep("dune1", 100))
   pred_in <- predict(fm, newdata = newdat_in, se.fit = T, type = "response", exclude = "s(dune)")
   pred_out <- predict(fm, newdata = newdat_out, se.fit = T, type = "response", exclude = "s(dune)")
   preds <- rbind(
@@ -50,6 +84,8 @@ plot_shrub_by_fence <- function(fm, orig_data, xmin = 0, xmax = 0.0155, ylabel =
     data.frame(fit = as.numeric(pred_out$fit), se = as.numeric(pred_out$se.fit), 
                fence = "outside", shrub_dens = newdat_out$shrub_dens)
   )
+  #preds <- filter(preds, !(fence == "outside" & shrub_dens > max_out))
+  #preds <- preds[preds$fence == "outside" & preds$shrub_dens > max(orig_data$shrub_dens[orig_data$fence == "outside"]),] <- NA
   if (is.null(ylabel)) {ylabel <- as.character(fm$formula)[2]}
   predplt <- ggplot(data = preds, aes(x = shrub_dens)) +
     geom_ribbon(aes(x = shrub_dens, ymax = fit + se, ymin = fit - se, fill = fence), alpha = "0.1") +
@@ -57,8 +93,8 @@ plot_shrub_by_fence <- function(fm, orig_data, xmin = 0, xmax = 0.0155, ylabel =
     geom_rug(mapping = aes(x = shrub_dens, colour = fence), data = orig_data) +
     xlim(c(xmin, xmax)) +
     scale_color_manual(values = c("red","blue")) + scale_fill_manual(values = c("red","blue")) + 
-    geom_vline(xintercept = max(orig_data$shrub_dens[orig_data$fence == "outside"]), colour = "blue", linetype = "dotted") +
-    labs(x = expression(Shrub~density~(m^-2)), y = ylabel) + theme_classic()
+    #geom_vline(xintercept = max(orig_data$shrub_dens[orig_data$fence == "outside"]), colour = "blue", linetype = "dotted") +
+    labs(x = "Shrub Density (/Ha)", y = ylabel) + theme_classic()
   if(print){print(predplt)}
   invisible(predplt)
 }
