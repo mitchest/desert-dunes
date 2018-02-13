@@ -4,6 +4,26 @@ my_violin <- function(y, data, ylab = y) {
     geom_violin(draw_quantiles = c(0.25,0.5,0.75)) + theme_bw()
 }
 
+my_hist <- function(x, data, ylab = y, legend_off = T) {
+  if (legend_off) {
+    plt <- ggplot(data = data, mapping = aes_string(x = x, fill = "fence")) +
+      ylab("density") + xlab(ylab) +
+      geom_density(alpha = 0.3) + scale_fill_manual(values = c("red", "blue")) +
+      guides(fill = FALSE) + theme_classic()
+  } else {
+    plt <- ggplot(data = data, mapping = aes_string(x = x, fill = "fence")) +
+      ylab("density") + xlab(ylab) +
+      geom_density(alpha = 0.3) + scale_fill_manual(values = c("red", "blue")) +
+      theme_classic() +
+      theme(
+        legend.position = c(.95, .95),
+        legend.justification = c("right", "top"),
+        legend.box.just = "right",
+        legend.margin = margin(6, 6, 6, 6))
+  }
+  plt
+}
+
 shrub_dens_diff <- function(x, data) {
   dat_in <- filter(data, year == x, fence == "inside")
   dat_out <- filter(data, year == x, fence == "outside")
@@ -70,7 +90,8 @@ shrub_smooth_dune_re2 <- function(y, data, summary = T, plot = F, bs = "'tp'") {
   invisible(fm)
 }
 
-plot_shrub_by_fence <- function(fm, orig_data, xmin = 0, xmax = 15, ylabel = NULL, print = F) {
+plot_shrub_by_fence <- function(fm, orig_data, xmin = 0, xmax = 150, ylabel = NULL, panel_lab = "a.", print = F) { #no.legend = F
+  library(grid)
   fm <- fm$gam
   max_out <- max(orig_data$shrub_dens[orig_data$fence == "outside"])
   # have to give the dune value, even though it'll be excluded....
@@ -95,6 +116,13 @@ plot_shrub_by_fence <- function(fm, orig_data, xmin = 0, xmax = 15, ylabel = NUL
     scale_color_manual(values = c("red","blue")) + scale_fill_manual(values = c("red","blue")) + 
     #geom_vline(xintercept = max(orig_data$shrub_dens[orig_data$fence == "outside"]), colour = "blue", linetype = "dotted") +
     labs(x = "Shrub Density (/Ha)", y = ylabel) + theme_classic()
+  # if (no.legend) {
+  #   predplt <- predplt + guides(fill = FALSE, colour = FALSE)
+  # }
+  predplt <- arrangeGrob(predplt, 
+                         top = grid::textGrob(panel_lab,
+                                        x = unit(0.1, "npc"), y = unit(0.9, "npc"),
+                                        just = c("left","top"), gp = gpar(col = "black", fontsize = 14)))
   if(print){print(predplt)}
   invisible(predplt)
 }

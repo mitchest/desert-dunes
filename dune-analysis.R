@@ -4,6 +4,7 @@ library(nlme)
 library(mgcv)
 library(data.table)
 library(dplyr)
+library(grid)
 #library(moments)
 #library(foreign)
 
@@ -72,7 +73,8 @@ dune_shrub_metrics2 <- dune_shrub_metrics %>%
 # dune transect plots -----------------------------------------------------
 
 transect_plot <- ggplot(data = dune_data_seq, aes(x = distance, y = height, group = Id)) +
-  geom_line(aes(colour = fence), size = 1, alpha = 0.5) +
+  geom_line(aes(colour = fence), size = 1, alpha = 0.2) +
+  scale_color_manual(values = c("red", "blue")) +
   ylab("Dune height (m)") + xlab("Distance along transect (m)") + theme_bw() +
   facet_grid(dune ~ ., scales = "fixed")
 ggsave("plots/dune_transect_plot.png", transect_plot, width = 30, height = 20, units = "cm")
@@ -105,7 +107,7 @@ history_plt <- ggplot(shrub_diff_ts, aes(x = year, y = diff)) +
   ylim(-10, 80) +
   geom_hline(yintercept = 0, linetype = 2) +
   ylab("Shrub density (shrubs/Ha)") + xlab("Image date") +
-  ggtitle("Difference in shrub density inside and outside the Dingo fence") +
+  #ggtitle("Difference in shrub density inside and outside the Dingo fence") +
   # annotate("text", x = 1948, y = 8, 
   #          label = "Difference in shrub density inside and outside the Dingo fence", size = 6, hjust = 0) +
   annotate("text", x = 1992, y = -5, label = sprintf('\u2193'), size = 9) +
@@ -113,13 +115,16 @@ history_plt <- ggplot(shrub_diff_ts, aes(x = year, y = diff)) +
   annotate("text", x = 1992, y = 5, label = sprintf('\u2191'), size = 9) +
   annotate("text", x = 1994, y = 5, label = "more shrubs inside", size = 4, hjust = 0) +
   theme_classic()
-ggsave(filename = "plots/history_plot.png", device = "png", plot = history_plt, width = 12, height = 8)
+ggsave(filename = "plots/history_plot.png", device = "png", plot = history_plt, width = 9, height = 6)
 
 
 # shrub metric plots ------------------------------------------------------
 
 boxplot(shrub_dens ~ fence, data = dune_shrub_metrics, ylab = "Shrub density")
 my_violin("shrub_dens", dune_shrub_metrics, ylab = "Shrub density")
+
+shrub_plt <- my_hist("shrub_dens", dune_shrub_metrics, ylab = "Shrub density", legend_off = F)
+ggsave("plots/shrubiness.png", device = "png", plot = shrub_plt, width = 6, height = 4)
 
 shrub_model <- lme(fixed = shrub_dens ~ fence, random = ~ 1 | dune,
                    correlation = corGaus(form = ~ east + north | dune, nugget = F),
@@ -134,17 +139,25 @@ boxplot(slope_cv ~ fence, data = dune_shrub_metrics, ylab = "Slope CV")
 boxplot(flatness ~ fence, data = dune_shrub_metrics, ylab = "Flatness")
 boxplot(rectangularity ~ fence, data = dune_shrub_metrics, ylab = "Rectangularity")
 
-
 metric_plt <- grid.arrange(
   my_violin("height_max", data = dune_shrub_metrics, ylab = "Maximum height"),
-  my_violin("heightdev_rms", data = dune_shrub_metrics, ylab = "Height dev."),
-  my_violin("slope_rms", data = dune_shrub_metrics, ylab = "Slope-iness"),
-  my_violin("slope_cv", data = dune_shrub_metrics, ylab = "Slope CV"),
+  my_violin("heightdev_rms", data = dune_shrub_metrics, ylab = "Deviation in height profile"),
+  my_violin("slope_rms", data = dune_shrub_metrics, ylab = "Absolute range in slope"),
+  my_violin("slope_cv", data = dune_shrub_metrics, ylab = "Slope variability"),
   my_violin("flatness", data = dune_shrub_metrics, ylab = "Flatness"),
   my_violin("rectangularity", data = dune_shrub_metrics, ylab = "Rectangularity"),
   ncol = 3)
 ggsave("plots/dune_metric_plots.png", device = "png", plot = metric_plt, width = 12, height = 8)
 
+metric_dens_plt <- grid.arrange(
+  my_hist("height_max", data = dune_shrub_metrics, ylab = "Maximum height"),
+  my_hist("heightdev_rms", data = dune_shrub_metrics, ylab = "Deviation in height profile"),
+  my_hist("slope_rms", data = dune_shrub_metrics, ylab = "Absolute range in slope"),
+  my_hist("slope_cv", data = dune_shrub_metrics, ylab = "Slope variability", legend_off = F),
+  my_hist("flatness", data = dune_shrub_metrics, ylab = "Flatness"),
+  my_hist("rectangularity", data = dune_shrub_metrics, ylab = "Rectangularity"),
+  ncol = 3)
+ggsave("plots/dune_metric_dens-plots.png", device = "png", plot = metric_dens_plt, width = 12, height = 8)
 
 # geomorph clustering -----------------------------------------------------
 library(ggbiplot)
@@ -223,13 +236,15 @@ get_paper_values(flat)
 get_paper_values(rect)
 
 # parial plots
-heightplt <- plot_shrub_by_fence(height, dune_shrub_metrics, ylabel = "Maximum height")
-heightdevplt <- plot_shrub_by_fence(heightdev, dune_shrub_metrics, ylabel = "Height deviation")
-slopermsplt <- plot_shrub_by_fence(sloperms, dune_shrub_metrics, ylabel = "Roughness (slope rms)")
-slopecvplt <- plot_shrub_by_fence(slopecv, dune_shrub_metrics, ylabel = "Roughness (slope CV)")
-flatplt <- plot_shrub_by_fence(flat, dune_shrub_metrics, ylabel = "Flatness")
-rectplt <- plot_shrub_by_fence(rect, dune_shrub_metrics, ylabel = "Rectangularity")
+heightplt <- plot_shrub_by_fence(height, dune_shrub_metrics, ylabel = "Maximum height", panel_lab = "a.")
+heightdevplt <- plot_shrub_by_fence(heightdev, dune_shrub_metrics, ylabel = "Height deviation", panel_lab = "b.")
+slopermsplt <- plot_shrub_by_fence(sloperms, dune_shrub_metrics, ylabel = "Roughness (slope rms)", panel_lab = "x.")
+slopecvplt <- plot_shrub_by_fence(slopecv, dune_shrub_metrics, ylabel = "Roughness (slope CV)", panel_lab = "c.")
+flatplt <- plot_shrub_by_fence(flat, dune_shrub_metrics, ylabel = "Flatness", panel_lab = "y.")
+rectplt <- plot_shrub_by_fence(rect, dune_shrub_metrics, ylabel = "Rectangularity", panel_lab = "d.")
 
-shrub_partials <- grid.arrange(heightplt, heightdevplt, slopermsplt, slopecvplt, flatplt, rectplt)
-ggsave("plots/shrub_partials.png", device = "png", plot = shrub_partials, width = 12, height = 10)
+shrub_partials_all <- grid.arrange(heightplt, heightdevplt, slopermsplt, slopecvplt, flatplt, rectplt)
+shrub_partials <- grid.arrange(heightplt, heightdevplt, slopecvplt, rectplt)
+ggsave("plots/shrub_partials_all.png", device = "png", plot = shrub_partials_all, width = 12, height = 10)
+ggsave("plots/shrub_partials.png", device = "png", plot = shrub_partials, width = 12, height = 7)
 
