@@ -110,12 +110,14 @@ history_plt <- ggplot(shrub_diff_ts, aes(x = year, y = diff)) +
   #ggtitle("Difference in shrub density inside and outside the Dingo fence") +
   # annotate("text", x = 1948, y = 8, 
   #          label = "Difference in shrub density inside and outside the Dingo fence", size = 6, hjust = 0) +
-  annotate("text", x = 1992, y = -5, label = sprintf('\u2193'), size = 9) +
+  #annotate("text", x = 1992, y = -5, label = sprintf('\u2193'), size = 9) +
+  geom_segment(aes(x = 1992, y = -2, xend = 1992, yend = -8), arrow = arrow(length = unit(0.03, "npc"))) +
   annotate("text", x = 1994, y = -5, label = "more shrubs outside", size = 4, hjust = 0) +
-  annotate("text", x = 1992, y = 5, label = sprintf('\u2191'), size = 9) +
+  #annotate("text", x = 1992, y = 5, label = sprintf('\u2191'), size = 9) +
+  geom_segment(aes(x = 1992, y = 2, xend = 1992, yend = 8), arrow = arrow(length = unit(0.03, "npc"))) +
   annotate("text", x = 1994, y = 5, label = "more shrubs inside", size = 4, hjust = 0) +
   theme_classic()
-ggsave(filename = "plots/history_plot.png", device = "png", plot = history_plt, width = 9, height = 6)
+ggsave(filename = "plots/history_plot.pdf", device = "pdf", plot = history_plt, width = 9, height = 6)
 
 
 # shrub metric plots ------------------------------------------------------
@@ -157,7 +159,7 @@ metric_dens_plt <- grid.arrange(
   my_hist("flatness", data = dune_shrub_metrics, ylab = "Flatness"),
   my_hist("rectangularity", data = dune_shrub_metrics, ylab = "Rectangularity"),
   ncol = 3)
-ggsave("plots/dune_metric_dens-plots.png", device = "png", plot = metric_dens_plt, width = 12, height = 8)
+ggsave("plots/dune_metric_dens-plots.pdf", device = "pdf", plot = metric_dens_plt, width = 12, height = 8)
 
 # geomorph clustering -----------------------------------------------------
 library(ggbiplot)
@@ -246,5 +248,5 @@ rectplt <- plot_shrub_by_fence(rect, dune_shrub_metrics, ylabel = "Rectangularit
 shrub_partials_all <- grid.arrange(heightplt, heightdevplt, slopermsplt, slopecvplt, flatplt, rectplt)
 shrub_partials <- grid.arrange(heightplt, heightdevplt, slopecvplt, rectplt)
 ggsave("plots/shrub_partials_all.png", device = "png", plot = shrub_partials_all, width = 12, height = 10)
-ggsave("plots/shrub_partials.png", device = "png", plot = shrub_partials, width = 12, height = 7)
+ggsave("plots/shrub_partials.pdf", device = "pdf", plot = shrub_partials, width = 12, height = 7)
 

@@ -36,3 +36,5 @@ transect_shapefiles/
 *.PNG
 *.zip
 *.docx
+manuscript/
+plots/
